@@ -1,0 +1,3 @@
+[submodule "mongokit"]
+	path = mongokit
+	url = https://github.com/namlook/mongokit.git
