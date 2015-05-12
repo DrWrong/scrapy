@@ -8,4 +8,5 @@
 
 class ScrapyTutorialPipeline(object):
     def process_item(self, item, spider):
-        print item.a
+        # print item.a
+        pass
