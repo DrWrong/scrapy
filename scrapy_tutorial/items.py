@@ -105,3 +105,29 @@ class GuaranteeCompanyInfo(MongoBaseItem):
 
         "projects": [Project],
     }
+
+
+@connection.register
+class Info(MongoBaseItem):
+    __database__ = "rongmofang"
+    __collection__ = "info"
+
+    structure = {
+        "id": int,
+        "type": IS(1, 2, 0),
+        "title": unicode,
+        "pub_time": datetime,
+        "keywords":[unicode],
+        "source":unicode,
+        "content": unicode,
+    }
+
+
+
+
+
+
+
+
+
+

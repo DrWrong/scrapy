@@ -11,25 +11,68 @@ import requests
 from scrapy_tutorial.utils import remove_unuse_character
 from scrapy_tutorial.utils import connection
 from logging import getLogger
+from bs4.element import NavigableString
 
 logger = getLogger(__file__)
 
-class RongMofangSpider(CrawlSpider):
 
+class RongMofangSpider(CrawlSpider):
 
     name = "rongmofang"
     allowed_domains = ["www.rongmofang.com"]
-    start_urls = ["https://www.rongmofang.com/project/list"]
+    start_urls = [
+        "https://www.rongmofang.com/project/list",
+        "http://www.rongmofang.com/information/InfoList?infoType=1",
+
+    ]
 
     rules = [
+        Rule(LinkExtractor(allow=(r'information/InfoList', ))),
         Rule(LinkExtractor(allow=(r'project/list(\?page=\d+)+',))),
         Rule(LinkExtractor(allow=(r"project/detail\?id=\d+")),
-             callback="parse_project")
+             callback="parse_project"),
+        Rule(LinkExtractor(allow=(r'information/infodetails/\d+',)),
+             callback="parse_info"
+             ),
     ]
+
+    def parse_info(self, response):
+        print "start parse info"
+        url = response.url
+        info_id = int(url.split("/")[-1])
+        info = connection.Info.one({"id": info_id})
+        if info is not None:
+            return info
+
+        soup = BeautifulSoup(response.body)
+        info = connection.Info()
+        info["id"] = info_id
+        link = soup.find("li", class_="active").a.attrs["href"]
+        info["type"] = int(urlparse(link).query.split("=")[1])
+        content = soup.find("div", class_="separate")
+        info["title"] = content.h2.text.strip()
+        # small_text = content.small.text.strip().split()
+        date_time = content.small.span.next_sibling.strip()
+        info["pub_time"] = datetime.strptime(
+            date_time,
+            "%Y-%m-%d %H:%M:%S")
+        info["keywords"] = []
+        for keyword  in content.small.find_all("a"):
+            info["keywords"].append(keyword.text)
+        source = content.small.find_all("span")[-1].next_sibling.strip()
+        info["source"] = source
+        info["content"] = ''
+        for sibling in content.find("hr", class_="dashed").next_siblings:
+            if type(sibling) != NavigableString:
+                sibling = sibling.text
+            info['content'] += sibling.strip()
+        info.save()
+        return info
+
 
     def parse_project(self, response):
         print "start parseing"
-        url  = response.url
+        url = response.url
         pid = int(urlparse(url).query.split("=")[1])
         project = connection.Project.one({"id": pid})
         if project is not None:
@@ -140,7 +183,7 @@ class RongMofangSpider(CrawlSpider):
         return guarantee
 
     def create_financial_guarantee(self, guarantee, trs):
-        guarantee["name"]  = trs[0].find_all("td")[1].text.strip()
+        guarantee["name"] = trs[0].find_all("td")[1].text.strip()
         guarantee["balance"] = trs[1].find_all("td")[1].text.strip()
         guarantee["info"] = trs[2].find_all("td")[1].text.strip()
         return guarantee
@@ -233,7 +276,8 @@ class RongMofangSpider(CrawlSpider):
             tr1 = company_info[1]
             company["assets"] = tr1.find_all("td")[1].text.strip()
             company["property"] = tr1.find_all("td")[3].text.strip()
-            company["industry"] = company_info[2].find_all("td")[1].text.strip()
+            company["industry"] = company_info[
+                2].find_all("td")[1].text.strip()
             company["introduction"] = company_info[3].p.text.strip()
             company["assets_situation"] = company_info[4].p.text.strip()
             company["law_situation"] = company_info[5].p.text.strip()
